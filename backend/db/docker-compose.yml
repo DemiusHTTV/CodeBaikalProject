@@ -1,0 +1,17 @@
+services:
+  db:
+    image: postgres:16
+    container_name: university_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: university
+      POSTGRES_USER: hackathon
+      POSTGRES_PASSWORD: hackathon
+    ports:
+      - "5432:5432"
+    volumes:
+      - .:/docker-entrypoint-initdb.d
+      - db_data:/var/lib/postgresql/data
+
+volumes:
+  db_data:
