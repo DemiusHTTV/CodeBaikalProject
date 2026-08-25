@@ -116,3 +116,8 @@ def test_rejects_row_lock_hidden_inside_subquery():
 def test_non_numeric_limit_falls_back_to_default_instead_of_crashing():
     sql = validate_select("SELECT * FROM teachers LIMIT $1", ALLOWED)
     assert f"LIMIT {DEFAULT_LIMIT}" in sql
+
+
+def test_strips_markdown_code_fence_before_parsing():
+    sql = validate_select("```sql\nSELECT full_name FROM teachers\n```", ALLOWED)
+    assert sql.startswith("SELECT")
