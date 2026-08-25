@@ -1,7 +1,3 @@
--- ============================================================
--- Схема БД "Университет" — под кейс хакатона "Код Байкала"
--- ============================================================
-
 DROP TABLE IF EXISTS admission_applications CASCADE;
 DROP TABLE IF EXISTS schedule CASCADE;
 DROP TABLE IF EXISTS grades CASCADE;
@@ -30,7 +26,7 @@ CREATE TABLE departments (
     name          TEXT NOT NULL
 );
 
--- Направления подготовки (для приёмной кампании и групп)
+-- Направления подготовки 
 CREATE TABLE directions (
     direction_id   SERIAL PRIMARY KEY,
     faculty_id     INT REFERENCES faculties(faculty_id),
@@ -43,11 +39,11 @@ CREATE TABLE directions (
 CREATE TABLE groups_ (
     group_id       SERIAL PRIMARY KEY,
     direction_id   INT REFERENCES directions(direction_id),
-    name           TEXT NOT NULL,          -- напр. "ИТ-21-1"
+    name           TEXT NOT NULL,          
     admission_year INT NOT NULL
 );
 
--- Студенты (персональные данные — доступ ограничен на уровне приложения!)
+-- Студенты 
 CREATE TABLE students (
     student_id     SERIAL PRIMARY KEY,
     full_name      TEXT NOT NULL,
@@ -55,22 +51,22 @@ CREATE TABLE students (
     admission_year INT NOT NULL
 );
 
--- Преподаватели (ФИО можно выводить — разрешено памяткой)
+-- Преподаватели 
 CREATE TABLE teachers (
     teacher_id    SERIAL PRIMARY KEY,
     full_name     TEXT NOT NULL,
     department_id INT REFERENCES departments(department_id),
-    position      TEXT NOT NULL             -- доцент / профессор / ст. преподаватель
+    position      TEXT NOT NULL            
 );
 
--- Деканы (ФИО можно выводить)
+-- Деканы 
 CREATE TABLE deans (
     dean_id    SERIAL PRIMARY KEY,
     full_name  TEXT NOT NULL,
     faculty_id INT REFERENCES faculties(faculty_id)
 );
 
--- Прочие сотрудники и администрация (ФИО можно выводить)
+-- Прочие сотрудники и администрация 
 CREATE TABLE staff (
     staff_id      SERIAL PRIMARY KEY,
     full_name     TEXT NOT NULL,
@@ -95,7 +91,7 @@ CREATE TABLE teacher_disciplines (
     semester       INT NOT NULL
 );
 
--- Оценки студентов (чувствительные данные — доступ ограничен на уровне приложения)
+-- Оценки студентов 
 CREATE TABLE grades (
     grade_id      SERIAL PRIMARY KEY,
     student_id    INT REFERENCES students(student_id),
@@ -125,14 +121,14 @@ CREATE TABLE schedule (
     end_time      TIME NOT NULL
 );
 
--- Приёмная кампания (персональные данные абитуриентов — доступ ограничен!)
+-- Приёмная кампания 
 CREATE TABLE admission_applications (
     application_id SERIAL PRIMARY KEY,
     applicant_name TEXT NOT NULL,
     direction_id   INT REFERENCES directions(direction_id),
     year           INT NOT NULL,
     ege_score      INT NOT NULL,
-    status         TEXT NOT NULL       -- 'подано' / 'зачислен' / 'отказ'
+    status         TEXT NOT NULL       
 );
 
 -- Индексы под типичные запросы ассистента
