@@ -16,12 +16,15 @@
 """
 from __future__ import annotations
 
+import logging
 import os
 
 import httpx
 from dotenv import load_dotenv
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 COMPLETION_URL = "https://llm.api.cloud.yandex.net/foundationModels/v1/completion"
 
@@ -36,6 +39,7 @@ async def ask_llm(system_prompt: str, user_message: str, temperature: float = 0.
     folder_id = os.environ["YANDEX_FOLDER"].strip()
     model = os.environ["YANDEX_MODEL"].strip()
 
+    logger.debug("Запрос к Yandex: %s", user_message)
     async with httpx.AsyncClient(timeout=30) as client:
         response = await client.post(
             COMPLETION_URL,
@@ -59,10 +63,13 @@ async def ask_llm(system_prompt: str, user_message: str, temperature: float = 0.
         )
 
     if response.status_code == 401:
+        logger.error("Yandex отклонил ключ (401)")
         raise LlmError("Yandex отклонил ключ (401). Проверь YANDEX_AUTH и YANDEX_FOLDER в .env.")
     response.raise_for_status()
 
     alternatives = response.json().get("result", {}).get("alternatives") or []
     if not alternatives:
+        logger.error("Yandex вернул пустой ответ")
         raise LlmError("Yandex вернул пустой ответ")
+    logger.debug("Ответ Yandex получен")
     return alternatives[0]["message"]["text"]
