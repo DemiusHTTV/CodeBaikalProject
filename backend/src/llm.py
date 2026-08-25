@@ -17,6 +17,7 @@
 """
 from __future__ import annotations
 
+import logging
 import os
 import time
 import uuid
@@ -25,6 +26,8 @@ import httpx
 from dotenv import load_dotenv
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 OAUTH_URL = "https://ngw.devices.sberbank.ru:9443/api/v2/oauth"
 CHAT_URL = "https://gigachat.devices.sberbank.ru/api/v1/chat/completions"
@@ -44,6 +47,7 @@ async def _get_access_token(client: httpx.AsyncClient) -> str:
     if _cached_token and time.time() < _cached_token_expires_at:
         return _cached_token
 
+    logger.info("Запрашиваю новый access_token у GigaChat")
     auth_key = os.environ["GIGACHAT_AUTH_KEY"]
     scope = os.environ["GIGACHAT_SCOPE"]
 
@@ -57,6 +61,7 @@ async def _get_access_token(client: httpx.AsyncClient) -> str:
         data={"scope": scope},
     )
     if response.status_code == 401:
+        logger.error("GigaChat отклонил ключ (401)")
         raise LlmError(
             "GigaChat отклонил ключ (401). Проверь GIGACHAT_AUTH_KEY и GIGACHAT_SCOPE в .env."
         )
@@ -64,11 +69,13 @@ async def _get_access_token(client: httpx.AsyncClient) -> str:
 
     _cached_token = response.json()["access_token"]
     _cached_token_expires_at = time.time() + 25 * 60  # обновляем чуть раньше, чем протухнет
+    logger.info("Новый access_token получен")
     return _cached_token
 
 
 async def ask_llm(system_prompt: str, user_message: str, temperature: float = 0.0) -> str:
     """Отправляет один запрос модели (system + user) и возвращает текст её ответа."""
+    logger.debug("Запрос к GigaChat: %s", user_message)
     # verify=False: сертификат GigaChat подписан УЦ Минцифры, которого нет в
     # системном хранилище доверенных сертификатов. Для прототипа — так, для
     # прода — подложить сертификат и убрать verify=False.
@@ -87,10 +94,13 @@ async def ask_llm(system_prompt: str, user_message: str, temperature: float = 0.
             },
         )
     if response.status_code == 401:
+        logger.error("GigaChat отклонил токен при отправке сообщения (401)")
         raise LlmError("GigaChat отклонил токен при отправке сообщения (401)")
     response.raise_for_status()
 
     choices = response.json().get("choices") or []
     if not choices:
+        logger.error("GigaChat вернул пустой ответ")
         raise LlmError("GigaChat вернул пустой ответ")
+    logger.debug("Ответ GigaChat получен")
     return choices[0]["message"]["content"]
