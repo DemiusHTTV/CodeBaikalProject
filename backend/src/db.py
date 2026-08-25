@@ -1,9 +1,13 @@
 """Подключение к PostgreSQL и выполнение уже проверенных (sql_guard) SELECT-запросов."""
 from __future__ import annotations
 
+import logging
+
 import asyncpg
 
 from .config import DatabaseSettings, load_database_settings
+
+logger = logging.getLogger(__name__)
 
 _pool: asyncpg.Pool | None = None
 
@@ -13,6 +17,7 @@ async def init_pool(settings: DatabaseSettings | None = None) -> asyncpg.Pool:
     if _pool is None:
         settings = settings or load_database_settings()
         _pool = await asyncpg.create_pool(dsn=settings.dsn, min_size=1, max_size=10)
+        logger.info("Пул подключений к БД создан (%s:%s/%s)", settings.host, settings.port, settings.name)
     return _pool
 
 
@@ -40,5 +45,10 @@ async def fetch_readonly(sql: str, statement_timeout_ms: int = 5000) -> list[dic
     async with pool.acquire() as conn:
         async with conn.transaction(readonly=True):
             await conn.execute(f"SET LOCAL statement_timeout = {int(statement_timeout_ms)}")
-            rows = await conn.fetch(sql)
+            try:
+                rows = await conn.fetch(sql)
+            except Exception:
+                logger.exception("Ошибка выполнения SQL: %s", sql)
+                raise
+            logger.debug("SQL выполнен, строк: %d", len(rows))
             return [dict(row) for row in rows]
