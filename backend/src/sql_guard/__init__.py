@@ -7,6 +7,7 @@ validate_select() ничего не делает сам — он по очере
   no_writes.py  — он точно ничего не меняет (ни явно, ни спрятанно в CTE)?
   no_locks.py   — он не блокирует строки (FOR UPDATE/FOR SHARE)?
   tables.py     — он не лезет в таблицы вне белого списка?
+  pii.py        — он не выводит персональные данные (ФИО студентов/абитуриентов)?
   functions.py  — он не вызывает опасные функции PostgreSQL?
   limits.py     — на выходе гарантированно есть разумный LIMIT?
 
@@ -23,6 +24,7 @@ from .limits import enforce_limit
 from .no_locks import reject_row_locks
 from .no_writes import reject_writes
 from .parsing import parse_single_statement
+from .pii import reject_pii_columns
 from .tables import reject_tables_outside_whitelist
 
 logger = logging.getLogger(__name__)
@@ -47,6 +49,7 @@ def validate_select(
         reject_writes(statement)
         reject_row_locks(statement)
         reject_tables_outside_whitelist(statement, allowed_tables)
+        reject_pii_columns(statement)
         reject_forbidden_functions(statement)
         enforce_limit(statement, default_limit, max_limit)
     except SqlGuardError as exc:
