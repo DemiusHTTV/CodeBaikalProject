@@ -1,3 +1,4 @@
+"""Схема БД: список таблиц/колонок для sql_guard и текстовое описание для промпта LLM."""
 from __future__ import annotations
 
 from dataclasses import dataclass

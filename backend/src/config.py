@@ -1,3 +1,6 @@
+"""Настройки подключения к БД — читаются из .env, ничего не хардкодим."""
+from __future__ import annotations
+
 import os
 from dataclasses import dataclass
 

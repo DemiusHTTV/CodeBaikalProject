@@ -1,3 +1,4 @@
+"""Подключение к PostgreSQL и выполнение уже проверенных (sql_guard) SELECT-запросов."""
 from __future__ import annotations
 
 import asyncpg
@@ -29,7 +30,12 @@ def get_pool() -> asyncpg.Pool:
 
 
 async def fetch_readonly(sql: str, statement_timeout_ms: int = 5000) -> list[dict]:
-    """Выполняет уже провалидированный (sql_guard) SELECT в read-only транзакции с таймаутом."""
+    """Выполняет sql в read-only транзакции с таймаутом, возвращает строки списком dict.
+
+    read-only транзакция — вторая линия защиты после sql_guard: даже если в
+    проверенном запросе как-то останется пишущая конструкция, PostgreSQL сам
+    откажется её выполнить.
+    """
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction(readonly=True):

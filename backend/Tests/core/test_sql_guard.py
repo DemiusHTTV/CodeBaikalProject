@@ -95,3 +95,24 @@ def test_table_check_is_case_insensitive():
 def test_rejects_empty_sql():
     with pytest.raises(SqlGuardError):
         validate_select("   ", ALLOWED)
+
+
+def test_rejects_write_hidden_inside_cte():
+    with pytest.raises(SqlGuardError):
+        validate_select(
+            "WITH x AS (DELETE FROM grades RETURNING *) SELECT * FROM x",
+            ALLOWED,
+        )
+
+
+def test_rejects_row_lock_hidden_inside_subquery():
+    with pytest.raises(SqlGuardError):
+        validate_select(
+            "SELECT * FROM (SELECT * FROM teachers FOR UPDATE) t",
+            ALLOWED,
+        )
+
+
+def test_non_numeric_limit_falls_back_to_default_instead_of_crashing():
+    sql = validate_select("SELECT * FROM teachers LIMIT $1", ALLOWED)
+    assert f"LIMIT {DEFAULT_LIMIT}" in sql
