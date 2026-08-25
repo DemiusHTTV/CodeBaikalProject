@@ -15,6 +15,8 @@ validate_select() ничего не делает сам — он по очере
 """
 from __future__ import annotations
 
+import logging
+
 from .errors import SqlGuardError
 from .functions import reject_forbidden_functions
 from .limits import enforce_limit
@@ -22,6 +24,8 @@ from .no_locks import reject_row_locks
 from .no_writes import reject_writes
 from .parsing import parse_single_statement
 from .tables import reject_tables_outside_whitelist
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_LIMIT = 200
 MAX_LIMIT = 1000
@@ -38,10 +42,14 @@ def validate_select(
     """Проверяет sql по всем шагам выше и возвращает готовую к выполнению строку
     с гарантированным LIMIT. Бросает SqlGuardError на первое найденное нарушение.
     """
-    statement = parse_single_statement(sql)
-    reject_writes(statement)
-    reject_row_locks(statement)
-    reject_tables_outside_whitelist(statement, allowed_tables)
-    reject_forbidden_functions(statement)
-    enforce_limit(statement, default_limit, max_limit)
+    try:
+        statement = parse_single_statement(sql)
+        reject_writes(statement)
+        reject_row_locks(statement)
+        reject_tables_outside_whitelist(statement, allowed_tables)
+        reject_forbidden_functions(statement)
+        enforce_limit(statement, default_limit, max_limit)
+    except SqlGuardError as exc:
+        logger.warning("sql_guard отклонил запрос: %s | sql=%r", exc, sql)
+        raise
     return statement.sql(dialect="postgres")
