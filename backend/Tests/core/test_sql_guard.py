@@ -3,6 +3,7 @@ import pytest
 from src.sql_guard import DEFAULT_LIMIT, MAX_LIMIT, SqlGuardError, validate_select
 
 ALLOWED = frozenset({"students", "teachers", "grades", "staff"})
+ALLOWED_WITH_ADMISSION = ALLOWED | {"admission_applications"}
 
 
 def test_adds_default_limit_when_missing():
@@ -121,3 +122,63 @@ def test_non_numeric_limit_falls_back_to_default_instead_of_crashing():
 def test_strips_markdown_code_fence_before_parsing():
     sql = validate_select("```sql\nSELECT full_name FROM teachers\n```", ALLOWED)
     assert sql.startswith("SELECT")
+
+
+def test_rejects_student_full_name():
+    with pytest.raises(SqlGuardError):
+        validate_select("SELECT full_name FROM students", ALLOWED)
+
+
+def test_rejects_student_full_name_with_table_alias():
+    with pytest.raises(SqlGuardError):
+        validate_select("SELECT s.full_name FROM students s", ALLOWED)
+
+
+def test_rejects_student_full_name_even_under_aggregate():
+    with pytest.raises(SqlGuardError):
+        validate_select("SELECT COUNT(full_name) FROM students", ALLOWED)
+
+
+def test_rejects_select_star_on_students():
+    with pytest.raises(SqlGuardError):
+        validate_select("SELECT * FROM students", ALLOWED)
+
+
+def test_rejects_qualified_star_on_students():
+    with pytest.raises(SqlGuardError):
+        validate_select("SELECT s.* FROM students s", ALLOWED)
+
+
+def test_rejects_applicant_name_from_admission_applications():
+    with pytest.raises(SqlGuardError):
+        validate_select(
+            "SELECT applicant_name FROM admission_applications", ALLOWED_WITH_ADMISSION
+        )
+
+
+def test_rejects_student_full_name_hidden_inside_cte():
+    with pytest.raises(SqlGuardError):
+        validate_select(
+            "WITH t AS (SELECT full_name FROM students) SELECT * FROM t",
+            ALLOWED,
+        )
+
+
+def test_rejects_student_full_name_joined_with_other_table():
+    with pytest.raises(SqlGuardError):
+        validate_select(
+            "SELECT s.full_name, t.full_name FROM students s "
+            "JOIN teachers t ON t.department_id = s.group_id",
+            ALLOWED,
+        )
+
+
+def test_allows_aggregate_query_on_students_without_pii_column():
+    sql = validate_select("SELECT COUNT(*) FROM students", ALLOWED)
+    assert "LIMIT" in sql
+
+
+def test_allows_teacher_full_name():
+    """ФИО преподавателей разрешено — запрет точечный, не по всей таблице."""
+    sql = validate_select("SELECT full_name FROM teachers", ALLOWED)
+    assert "LIMIT" in sql
