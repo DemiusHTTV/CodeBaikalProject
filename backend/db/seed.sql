@@ -10985,3 +10985,26 @@ SELECT setval('grades_grade_id_seq', (SELECT MAX(grade_id) FROM grades));
 SELECT setval('rooms_room_id_seq', (SELECT MAX(room_id) FROM rooms));
 SELECT setval('schedule_schedule_id_seq', (SELECT MAX(schedule_id) FROM schedule));
 SELECT setval('admission_applications_application_id_seq', (SELECT MAX(application_id) FROM admission_applications));
+
+-- Демо-пользователи для входа в чат. Абитуриента здесь нет намеренно: эта роль
+-- анонимная, аккаунт ей не нужен (см. login() в src/main.py). Пароли — только
+-- для локальной/демо-базы хакатона, для прод-варианта завести отдельных
+-- реальных пользователей и сменить пароли.
+INSERT INTO users (username, password_hash, role, student_id, teacher_id) VALUES
+(
+    'student1',
+    '$2b$12$3IppNiWFx49DD4KzQLpK9ev3Smu7JqXEgQZNC9ZbNziblGUw/mev6', -- пароль: student12345
+    'student', 1, NULL
+),
+(
+    'teacher1',
+    '$2b$12$SttrxqSRdCIQGDgDCrsWBueB/WD.nr5SSxR4adEsrZhcBkOUHGeX6', -- пароль: teacher12345
+    'teacher', NULL, 1
+),
+(
+    'staff1',
+    '$2b$12$//JsT4smEIJj5EVuZCLv1.QPMQwYx9xQwoWy8HRdS3l1uwKCWShQa', -- пароль: staff12345
+    'staff', NULL, NULL
+);
+
+SELECT setval('users_user_id_seq', (SELECT MAX(user_id) FROM users));

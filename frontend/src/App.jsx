@@ -10,11 +10,11 @@ export default function App() {
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)
 
-  async function handleStart(role, studentId) {
+  async function handleStart(role, username, password) {
     setBusy(true)
     setError(null)
     try {
-      setSession(await login(role, studentId))
+      setSession(await login(role, username, password))
       setScreen('chat')
     } catch (err) {
       setError(`Не удалось войти: ${err.message}. Backend запущен на порту 8000?`)

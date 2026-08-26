@@ -60,14 +60,15 @@ export function ErrorMessage({ title, text, onRetry }) {
 
 export function AnswerMessage({ result }) {
   const [sqlOpen, setSqlOpen] = useState(false)
-  const { sql, columns, rows, row_count: rowCount, elapsed_ms: elapsedMs } = result
+  const { sql, columns, rows, row_count: rowCount, answer, elapsed_ms: elapsedMs } = result
 
+  // answer — пересказ от модели. Если она не ответила, показываем таблицу
+  // с короткой служебной подписью, а не пустое место.
   const summary =
-    rowCount === 0
+    answer ||
+    (rowCount === 0
       ? 'Запрос отработал, но подходящих записей в базе не нашлось.'
-      : rowCount === 1 && columns.length === 1
-        ? `${columns[0]}: ${rows[0][0]}`
-        : `Нашёл записей: ${rowCount}.`
+      : `Нашёл записей: ${rowCount}.`)
 
   return (
     <div className="row">

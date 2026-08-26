@@ -143,32 +143,33 @@ button {
   text-align: left;
   transition: border-color 0.15s ease;
 }
-.role-option:hover {
+.role-option:hover:not(:disabled) {
   border-color: var(--border-strong);
+}
+.role-note {
+  float: right;
+  font-size: 12px;
+  color: var(--muted);
 }
 .role-option.is-selected {
   border: 2px solid var(--navy);
   padding: 13px 23px;
 }
 
-.student-id-field {
+.login-field {
   display: flex;
   flex-direction: column;
   gap: 6px;
   font-size: 13px;
   color: var(--muted);
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
-.student-id-field input {
+.login-field input {
   font: inherit;
   color: var(--ink);
   padding: 10px 14px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  max-width: 160px;
-}
-.student-id-note {
-  font-size: 12px;
 }
 
 .login-error {
@@ -185,6 +186,18 @@ button {
   display: block;
   margin: 0 auto;
   min-width: 220px;
+}
+
+.login-back {
+  display: block;
+  margin: 14px auto 0;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 13px;
+}
+.login-back:hover:not(:disabled) {
+  color: var(--ink);
 }
 
 /* ---------- Чат ---------- */

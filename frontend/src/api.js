@@ -19,11 +19,12 @@ async function request(path, { method = 'POST', body, token, signal } = {}) {
   return payload
 }
 
-// Роль уходит на сервер один раз — в обмен на подписанный токен. Дальше клиент
-// роль не передаёт: она внутри токена, подменить её на "staff" не получится.
-export function login(role, studentId) {
+// Логин/пароль уходят на сервер один раз — в обмен на подписанный токен.
+// Роль сервер сверяет с той, что записана у пользователя в БД, и в токен
+// кладёт именно её — прислать "staff" и получить чужие права не выйдет.
+export function login(role, username, password) {
   return request('/api/login', {
-    body: { role, student_id: role === 'student' ? studentId : null },
+    body: { role, username, password },
   })
 }
 
