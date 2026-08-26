@@ -149,7 +149,7 @@ async def login(request: LoginRequest) -> LoginResponse:
 async def ask(request: AskRequest, user: TokenPayload = Depends(current_user)) -> AskResponse:
     policy = policy_for(user.role)
     try:
-        result = await answer_question(request.question, policy, user.student_id)
+        result = await answer_question(request.question, policy, user.student_id, role=user.role)
     except LlmError as exc:
         logger.error("Модель недоступна: %s", exc)
         raise HTTPException(status_code=502, detail=f"Модель недоступна: {exc}") from exc

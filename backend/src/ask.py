@@ -90,7 +90,9 @@ async def main() -> None:
             if not question:
                 break
             try:
-                result = await answer_question(question, policy, payload.student_id)
+                result = await answer_question(
+                    question, policy, payload.student_id, role=payload.role
+                )
             except LlmError as exc:
                 logger.error("Модель недоступна: %s", exc)
                 print(f"\n✗ Модель недоступна: {exc}\n")
