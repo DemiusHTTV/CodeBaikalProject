@@ -4,4 +4,6 @@ __pycache__/
 .pytest_cache/
 .venv/
 reference/
-logs/   
+logs/
+node_modules/
+dist/
