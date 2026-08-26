@@ -13,6 +13,11 @@ SCHEMA_SQL_PATH = Path(__file__).resolve().parent.parent / "db" / "schema.sql"
 # выводить только в агрегированном/обезличенном виде, не пофамильно.
 SENSITIVE_TABLES = frozenset({"students", "admission_applications", "grades"})
 
+# Служебные таблицы (авторизация и т.п.) — не часть предметной области вуза.
+# Не должны попадать ни в промпт модели, ни в whitelist sql_guard: иначе через
+# обычный вопрос можно было бы выгрузить password_hash из users.
+INTERNAL_TABLES = frozenset({"users"})
+
 
 @dataclass(frozen=True)
 class ColumnInfo:
@@ -39,6 +44,8 @@ def parse_tables(schema_sql: str | None = None) -> list[TableInfo]:
             continue
         schema_expr = statement.this
         table_name = schema_expr.this.this.this
+        if table_name in INTERNAL_TABLES:
+            continue
         columns = tuple(
             ColumnInfo(name=col.this.this, type=col.kind.sql(dialect="postgres"))
             for col in schema_expr.expressions

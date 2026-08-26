@@ -4,11 +4,14 @@
     .venv/bin/uvicorn src.main:app --reload
 
 Две ручки:
-    POST /api/login  {"role": "student", "student_id": 1}  -> {"token": "..."}
+    POST /api/login  {"role": "student", "username": "student1", "password": "..."}
+                     -> {"token": "..."}
+                     роль applicant — анонимная, логин/пароль не нужны
     POST /api/ask    {"question": "..."}  + заголовок Authorization: Bearer <token>
 
-Роль берётся ТОЛЬКО из подписанного токена, никогда из тела запроса — иначе
-клиент мог бы просто прислать "role": "staff" и получить чужие права.
+Роль и student_id/teacher_id берутся из таблицы users по логину/паролю и
+кладутся в подписанный токен — клиент никогда не присылает роль сам, иначе
+мог бы прислать "role": "staff" и получить чужие права.
 """
 from __future__ import annotations
 
@@ -25,10 +28,9 @@ from .llm import LlmError
 from .logging_config import setup_logging
 from .pipeline import answer_question
 from .roles import policy_for
+from .users import verify_credentials
 
 logger = logging.getLogger(__name__)
-
-ROLES = ("applicant", "student", "teacher", "staff")
 
 
 @asynccontextmanager
@@ -54,7 +56,9 @@ app.add_middleware(
 
 class LoginRequest(BaseModel):
     role: str
-    student_id: int | None = None
+    # Пусто только для роли applicant — она анонимная, см. login().
+    username: str | None = None
+    password: str | None = None
 
 
 class LoginResponse(BaseModel):
@@ -88,26 +92,57 @@ async def current_user(authorization: str = Header(default="")) -> TokenPayload:
         raise HTTPException(status_code=401, detail=str(exc)) from exc
 
 
-@app.post("/api/login", response_model=LoginResponse)
-async def login(request: LoginRequest) -> LoginResponse:
-    if request.role not in ROLES:
-        raise HTTPException(status_code=400, detail=f"Неизвестная роль. Доступны: {', '.join(ROLES)}")
-
-    extra = {}
-    if request.role == "student":
-        # Без student_id роль student не смогла бы спросить "мои оценки",
-        # а own_rows-проверка не знала бы, чьи данные считать своими.
-        extra["student_id"] = request.student_id if request.student_id is not None else 1
-
-    token = create_token(role=request.role, subject="демо-пользователь", **extra)
-    policy = policy_for(request.role)
-    logger.info("Выдан токен для роли %s", request.role)
+def _login_response(role: str, token: str) -> LoginResponse:
+    policy = policy_for(role)
     return LoginResponse(
         token=token,
-        role=request.role,
+        role=role,
         allowed_tables=sorted(policy.allowed_tables),
         allow_raw_pii=policy.allow_raw_pii,
     )
+
+
+@app.post("/api/login", response_model=LoginResponse)
+async def login(request: LoginRequest) -> LoginResponse:
+    # Абитуриент — анонимная роль: аккаунта в университете у него ещё нет, а
+    # доступны ему только справочные данные о наборе (см. roles.py), поэтому
+    # логин/пароль не спрашиваем. Права всё равно ограничены политикой роли.
+    if request.role == "applicant":
+        logger.info("Выдан токен анонимному абитуриенту")
+        return _login_response(
+            "applicant", create_token(role="applicant", subject="анонимный абитуриент")
+        )
+
+    if not request.username or not request.password:
+        raise HTTPException(status_code=400, detail="Нужны логин и пароль")
+
+    user = await verify_credentials(request.username, request.password)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Неверный логин или пароль")
+
+    # Роль с формы — только сверка с тем, что записано у пользователя в БД.
+    # В токен ниже всё равно идёт user.role, а не request.role: иначе клиент
+    # мог бы прислать "staff" и получить чужие права.
+    if user.role != request.role:
+        logger.warning(
+            "Роль не совпала: пользователь %s имеет роль %s, выбрана %s",
+            user.username,
+            user.role,
+            request.role,
+        )
+        raise HTTPException(
+            status_code=403,
+            detail="Этот аккаунт относится к другой роли — выберите нужную роль и попробуйте снова",
+        )
+
+    extra = {}
+    if user.student_id is not None:
+        extra["student_id"] = user.student_id
+    if user.teacher_id is not None:
+        extra["teacher_id"] = user.teacher_id
+
+    logger.info("Выдан токен для роли %s (пользователь %s)", user.role, user.username)
+    return _login_response(user.role, create_token(role=user.role, subject=user.username, **extra))
 
 
 @app.post("/api/ask", response_model=AskResponse)

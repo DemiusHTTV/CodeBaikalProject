@@ -1,3 +1,4 @@
+DROP TABLE IF EXISTS users CASCADE;
 DROP TABLE IF EXISTS admission_applications CASCADE;
 DROP TABLE IF EXISTS schedule CASCADE;
 DROP TABLE IF EXISTS grades CASCADE;
@@ -129,6 +130,19 @@ CREATE TABLE admission_applications (
     year           INT NOT NULL,
     ege_score      INT NOT NULL,
     status         TEXT NOT NULL       
+);
+
+-- Служебная таблица авторизации — НЕ часть предметной области вуза.
+-- Не показывается модели и не разрешена в sql_guard ни при каких условиях
+-- (см. INTERNAL_TABLES в schema_context.py), иначе через обычный вопрос
+-- можно было бы попросить "покажи password_hash всех пользователей".
+CREATE TABLE users (
+    user_id       SERIAL PRIMARY KEY,
+    username      TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    role          TEXT NOT NULL,                          -- applicant | student | teacher | staff
+    student_id    INT REFERENCES students(student_id),     -- только для role = student
+    teacher_id    INT REFERENCES teachers(teacher_id)       -- только для role = teacher
 );
 
 -- Индексы под типичные запросы ассистента

@@ -1,70 +1,114 @@
 import { useState } from 'react'
 import birdIllustration from './assets/login-bird.svg'
 
+// Абитуриент входит без аккаунта: он ещё не в университете, а доступны ему
+// только справочные данные о наборе.
 const ROLES = [
-  { id: 'applicant', label: 'Абитуриент' },
+  { id: 'applicant', label: 'Абитуриент', note: 'без входа в аккаунт' },
   { id: 'student', label: 'Студент' },
   { id: 'teacher', label: 'Преподаватель' },
   { id: 'staff', label: 'Сотрудник' },
 ]
 
 export default function LoginScreen({ onStart, error, busy }) {
-  const [role, setRole] = useState('student')
-  const [studentId, setStudentId] = useState('1')
+  const [role, setRole] = useState(null)
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+
+  function handleRoleClick(id) {
+    if (id === 'applicant') {
+      onStart(id)
+      return
+    }
+    setRole(id)
+  }
+
+  function handleSubmit(event) {
+    event.preventDefault()
+    if (!username || !password) return
+    onStart(role, username, password)
+  }
+
+  const roleLabel = ROLES.find((item) => item.id === role)?.label
 
   return (
     <div className="login-page">
       <div className="login-card">
         <img className="login-illustration" src={birdIllustration} alt="" />
 
-        <div className="login-form">
-          <h1 className="login-title">Здравствуйте!</h1>
-          <h2 className="login-subtitle">Кто вы?</h2>
-          <p className="login-hint">
-            Роль определяет, какие данные и отчёты будут доступны в чате.
-          </p>
+        {role === null ? (
+          <div className="login-form">
+            <h1 className="login-title">Здравствуйте!</h1>
+            <h2 className="login-subtitle">Кто вы?</h2>
+            <p className="login-hint">
+              Роль определяет, какие данные и отчёты будут доступны в чате.
+            </p>
 
-          <div className="role-list" role="radiogroup" aria-label="Выбор роли">
-            {ROLES.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                role="radio"
-                aria-checked={role === item.id}
-                className={`role-option ${role === item.id ? 'is-selected' : ''}`}
-                onClick={() => setRole(item.id)}
-              >
-                {item.label}
-              </button>
-            ))}
+            <div className="role-list" role="group" aria-label="Выбор роли">
+              {ROLES.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className="role-option"
+                  disabled={busy}
+                  onClick={() => handleRoleClick(item.id)}
+                >
+                  {item.label}
+                  {item.note && <span className="role-note">{item.note}</span>}
+                </button>
+              ))}
+            </div>
+
+            {error && <p className="login-error">{error}</p>}
           </div>
+        ) : (
+          <form className="login-form" onSubmit={handleSubmit}>
+            <h1 className="login-title">{roleLabel}</h1>
+            <h2 className="login-subtitle">Войдите в свой аккаунт</h2>
+            <p className="login-hint">
+              Введите логин и пароль, выданные университетом.
+            </p>
 
-          {role === 'student' && (
-            <label className="student-id-field">
-              Ваш student_id
+            <label className="login-field">
+              Логин
               <input
-                type="number"
-                min="1"
-                value={studentId}
-                onChange={(event) => setStudentId(event.target.value)}
+                type="text"
+                autoComplete="username"
+                value={username}
+                onChange={(event) => setUsername(event.target.value)}
               />
-              <span className="student-id-note">
-                Определяет, чьи оценки вы увидите. Чужие — запрещены.
-              </span>
             </label>
-          )}
 
-          {error && <p className="login-error">{error}</p>}
+            <label className="login-field">
+              Пароль
+              <input
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+              />
+            </label>
 
-          <button
-            type="button"
-            className="primary-button login-submit"
-            disabled={busy}
-            onClick={() => onStart(role, Number(studentId) || 1)}
-          >
-            {busy ? 'Входим…' : 'Начать'}
-          </button>
-        </div>
+            {error && <p className="login-error">{error}</p>}
+
+            <button
+              type="submit"
+              className="primary-button login-submit"
+              disabled={busy || !username || !password}
+            >
+              {busy ? 'Входим…' : 'Войти'}
+            </button>
+
+            <button
+              type="button"
+              className="login-back"
+              disabled={busy}
+              onClick={() => setRole(null)}
+            >
+              ← Выбрать другую роль
+            </button>
+          </form>
+        )}
       </div>
     </div>
   )

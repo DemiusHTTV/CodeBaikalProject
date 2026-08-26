@@ -42,3 +42,15 @@ def test_schema_prompt_mentions_pdn_note_for_sensitive_tables():
     assert "students(" in prompt
     assert "персональные данные" in prompt
     assert "teachers(" in prompt
+
+
+def test_internal_tables_excluded_from_whitelist():
+    # users — служебная таблица авторизации, не часть предметной области вуза.
+    assert "users" not in table_names()
+
+
+def test_internal_tables_excluded_from_prompt():
+    # Модель не должна даже знать о существовании таблицы с password_hash.
+    prompt = build_schema_prompt()
+    assert "users" not in prompt
+    assert "password" not in prompt
