@@ -1,14 +1,10 @@
-"""Консольная проверка связки вопрос -> SQL -> реальные данные, без фронта.
+"""Консольная проверка связки роль -> вопрос -> SQL -> реальные данные, без фронта.
 
 Запуск (из backend/):
     .venv/bin/python -m src.ask
 
-Дальше просто печатаешь вопрос по-русски и жмёшь Enter. Каждый вопрос проходит
-весь путь: LLM генерирует SQL -> sql_guard проверяет -> PostgreSQL выполняет ->
-на экране SQL и таблица результата. Пустая строка — выход.
-
-Какую БД брать, решает .env (DB_HOST и т.д.) — в коде менять ничего не надо,
-что для локальной БД из backend/db, что для сервера хакатона.
+Логика запроса живёт в pipeline.py — ровно та же, что использует HTTP API,
+чтобы консоль и веб отвечали одинаково. Здесь только ввод-вывод в терминал.
 """
 from __future__ import annotations
 
@@ -16,65 +12,72 @@ import asyncio
 import logging
 
 from . import db
+from .auth import create_token, decode_token
 from .config import load_database_settings
-from .llm import LlmError, ask_llm
+from .llm import LlmError
 from .logging_config import setup_logging
-from .schema_context import build_schema_prompt, table_names
-from .sql_guard import SqlGuardError, validate_select
+from .pipeline import answer_question
+from .roles import policy_for
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = (
-    build_schema_prompt()
-    + "\n\n"
-    "Ты переводишь вопрос сотрудника университета в один SQL-запрос PostgreSQL.\n"
-    "Правила:\n"
-    "- Верни только сам SQL-запрос: без markdown, без пояснений, без точки с запятой.\n"
-    "- Разрешён только SELECT.\n"
-    "- Не пиши SELECT * — перечисляй нужные колонки явно.\n"
-    "- Данные студентов и абитуриентов — только агрегированно (COUNT/AVG/SUM), "
-    "их ФИО никогда не выводи.\n"
-)
+ROLES = ("applicant", "student", "teacher", "staff")
 
 
-def _print_table(rows: list[dict]) -> None:
-    if not rows:
+def _choose_role() -> str:
+    print(f"Роли: {', '.join(ROLES)}")
+    while True:
+        role = input("Выбери роль: ").strip().lower()
+        if role in ROLES:
+            return role
+        print(f"Нет такой роли, выбери из: {', '.join(ROLES)}")
+
+
+def _choose_own_student_id() -> int:
+    while True:
+        raw = input("Под каким student_id войти (число, см. seed.sql, напр. 1): ").strip()
+        if raw.isdigit():
+            return int(raw)
+        print("Нужно целое число.")
+
+
+def _print_table(columns: list[str], rows: list[list]) -> None:
+    if not columns:
         print("(пусто)")
         return
-    columns = list(rows[0].keys())
-    widths = [max(len(c), *(len(str(r[c])) for r in rows)) for c in columns]
-    print(" | ".join(c.ljust(w) for c, w in zip(columns, widths)))
+    widths = [
+        max(len(str(col)), *(len(str(row[i])) for row in rows)) if rows else len(str(col))
+        for i, col in enumerate(columns)
+    ]
+    print(" | ".join(str(c).ljust(w) for c, w in zip(columns, widths)))
     print("-+-".join("-" * w for w in widths))
     for row in rows:
-        print(" | ".join(str(row[c]).ljust(w) for c, w in zip(columns, widths)))
-
-
-async def ask_once(question: str) -> None:
-    logger.info("Вопрос: %s", question)
-    raw_sql = await ask_llm(SYSTEM_PROMPT, question)
-    logger.debug("Модель предложила SQL: %s", raw_sql.strip())
-    print(f"\nМодель предложила SQL:\n  {raw_sql.strip()}")
-
-    try:
-        safe_sql = validate_select(raw_sql, table_names())
-    except SqlGuardError as exc:
-        logger.warning("Запрос отклонён sql_guard: %s | исходный SQL: %s", exc, raw_sql.strip())
-        print(f"\n✗ Отклонено защитой: {exc}")
-        return
-
-    logger.info("SQL прошёл проверку: %s", safe_sql)
-    print(f"\nПосле проверки (с гарантированным LIMIT):\n  {safe_sql}")
-
-    rows = await db.fetch_readonly(safe_sql)
-    logger.info("Выполнено, строк: %d", len(rows))
-    print(f"\nРезультат ({len(rows)} строк):")
-    _print_table(rows)
+        print(" | ".join(str(v).ljust(w) for v, w in zip(row, widths)))
 
 
 async def main() -> None:
     setup_logging()
+
+    role = _choose_role()
+    extra_claims = {}
+    if role == "student":
+        extra_claims["student_id"] = _choose_own_student_id()
+
+    # Ровно тот же путь, что пройдёт настоящий HTTP-запрос: выпустили токен,
+    # тут же его расшифровали, дальше работаем только с тем, что достали из него.
+    token = create_token(role=role, subject="демо-пользователь", **extra_claims)
+    payload = decode_token(token)
+    policy = policy_for(payload.role)
+
+    logger.info("Роль: %s, student_id: %s", payload.role, payload.student_id)
+    print(f"\nТокен выдан для роли «{payload.role}»:\n  {token}")
+    print(f"Доступные таблицы: {', '.join(sorted(policy.allowed_tables))}")
+    print(f"ФИО студентов/абитуриентов: {'разрешены' if policy.allow_raw_pii else 'только агрегатно'}")
+    if payload.student_id is not None:
+        print(f"Свои данные: student_id = {payload.student_id}, чужие student_id запрещены")
+    print()
+
     settings = load_database_settings()
-    logger.info("Подключение к БД %s@%s:%s/%s", settings.user, settings.host, settings.port, settings.name)
     print(f"БД: {settings.user}@{settings.host}:{settings.port}/{settings.name}")
     await db.init_pool(settings)
     print("Готов. Пиши вопрос по-русски и жми Enter (пустая строка — выход).\n")
@@ -87,10 +90,19 @@ async def main() -> None:
             if not question:
                 break
             try:
-                await ask_once(question)
+                result = await answer_question(question, policy, payload.student_id)
             except LlmError as exc:
                 logger.error("Модель недоступна: %s", exc)
-                print(f"\n✗ Модель недоступна: {exc}")
+                print(f"\n✗ Модель недоступна: {exc}\n")
+                continue
+
+            if result.error:
+                print(f"\n✗ {result.error}\n")
+                continue
+
+            print(f"\nSQL:\n  {result.sql}")
+            print(f"\nРезультат ({result.row_count} строк, {result.elapsed_ms} мс):")
+            _print_table(result.columns, result.rows)
             print()
     finally:
         await db.close_pool()
