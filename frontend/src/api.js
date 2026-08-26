@@ -30,3 +30,8 @@ export function login(role, studentId) {
 export function ask(question, token, signal) {
   return request('/api/ask', { body: { question }, token, signal })
 }
+
+// Доступно только роли staff — на сервере стоит проверка, здесь просто запрос.
+export function fetchAnalytics(token) {
+  return request('/api/analytics', { method: 'GET', token })
+}

@@ -37,7 +37,7 @@ const ROLE_LABELS = {
   staff: 'Сотрудник',
 }
 
-export default function ChatScreen({ session, onLogout }) {
+export default function ChatScreen({ session, onLogout, onOpenAnalytics }) {
   const [messages, setMessages] = useState([])
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
@@ -105,6 +105,11 @@ export default function ChatScreen({ session, onLogout }) {
             <span className="pii-badge pii-open">ФИО доступны</span>
           ) : (
             <span className="pii-badge">ФИО только агрегатно</span>
+          )}
+          {session.role === 'staff' && (
+            <button type="button" className="link-button" onClick={onOpenAnalytics}>
+              Аналитика
+            </button>
           )}
           <button type="button" className="link-button" onClick={onLogout}>
             Сменить роль
