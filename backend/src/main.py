@@ -20,6 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from . import db
+from .analytics import load_events, summarize
 from .auth import AuthError, TokenPayload, create_token, decode_token
 from .llm import LlmError
 from .logging_config import setup_logging
@@ -120,6 +121,15 @@ async def ask(request: AskRequest, user: TokenPayload = Depends(current_user)) -
         raise HTTPException(status_code=502, detail=f"Модель недоступна: {exc}") from exc
 
     return AskResponse(**vars(result))
+
+
+@app.get("/api/analytics")
+async def analytics(user: TokenPayload = Depends(current_user)) -> dict:
+    # В логе лежат вопросы всех пользователей — отдаём только администрации.
+    if user.role != "staff":
+        raise HTTPException(status_code=403, detail="Аналитика доступна только сотрудникам")
+    logger.info("Запрошена аналитика", extra={"event": {"role": user.role}})
+    return summarize(load_events())
 
 
 @app.get("/api/health")

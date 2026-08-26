@@ -5,10 +5,12 @@
 """
 from __future__ import annotations
 
+import datetime as dt
 import logging
 import time
 import uuid
 from dataclasses import dataclass, field
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 from . import db
 from .llm import ask_llm
@@ -17,6 +19,25 @@ from .roles import RolePolicy
 from .sql_guard import SqlGuardError, validate_select
 
 logger = logging.getLogger(__name__)
+
+
+def _clean_value(value):
+    """Приводит значение из БД к виду, пригодному для показа человеку.
+
+    AVG() в PostgreSQL возвращает numeric с большой точностью: средний балл
+    приезжает как 3.5000000000000000. Просим модель делать ROUND, но полагаться
+    только на неё нельзя — она правило периодически забывает, поэтому режем
+    хвост нулей и здесь.
+    """
+    if isinstance(value, Decimal):
+        try:
+            rounded = value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        except InvalidOperation:  # слишком большое число для quantize
+            return float(value)
+        return float(rounded)
+    if isinstance(value, (dt.date, dt.time, dt.datetime)):
+        return str(value)
+    return value
 
 
 @dataclass
@@ -114,6 +135,6 @@ async def answer_question(
     return finish(
         sql=safe_sql,
         columns=columns,
-        rows=[[row[column] for column in columns] for row in rows],
+        rows=[[_clean_value(row[column]) for column in columns] for row in rows],
         row_count=len(rows),
     )
