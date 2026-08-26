@@ -3,6 +3,7 @@ import pytest
 from src.sql_guard import DEFAULT_LIMIT, MAX_LIMIT, SqlGuardError, validate_select
 
 ALLOWED = frozenset({"students", "teachers", "grades", "staff"})
+ALLOWED_WITH_ADMISSION = ALLOWED | {"admission_applications"}
 
 
 def test_adds_default_limit_when_missing():
