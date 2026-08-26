@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import time
+import uuid
 from dataclasses import dataclass, field
 
 from . import db
@@ -34,20 +35,42 @@ async def answer_question(
     question: str,
     policy: RolePolicy,
     own_student_id: int | None = None,
+    role: str = "unknown",
 ) -> AskResult:
     started = time.monotonic()
-    logger.info("Вопрос: %s", question)
+    # Свой id на запрос: при параллельной работе нескольких человек без него
+    # нельзя понять, какая строка лога к какому вопросу относится.
+    request_id = uuid.uuid4().hex[:12]
+    logger.info("Вопрос: %s", question, extra={"event": {"request_id": request_id, "role": role}})
 
     system_prompt = build_sql_prompt(policy, own_student_id)
     raw_sql = (await ask_llm(system_prompt, question)).strip()
     logger.debug("Модель предложила SQL: %s", raw_sql)
 
     def finish(**kwargs) -> AskResult:
-        return AskResult(
+        result = AskResult(
             question=question,
             elapsed_ms=int((time.monotonic() - started) * 1000),
             **kwargs,
         )
+        # Одна сводная запись на запрос — то, по чему потом строится аналитика.
+        logger.info(
+            "Запрос завершён",
+            extra={
+                "event": {
+                    "event": "ask",
+                    "request_id": request_id,
+                    "role": role,
+                    "student_id": own_student_id,
+                    "question": question,
+                    "sql": result.sql,
+                    "outcome": result.error_kind or "ok",
+                    "row_count": result.row_count,
+                    "elapsed_ms": result.elapsed_ms,
+                }
+            },
+        )
+        return result
 
     # Порядок важен: FORBIDDEN проверяем первым, иначе он совпал бы с подстрокой
     # OFFTOPIC-маркера при неаккуратном ответе модели.

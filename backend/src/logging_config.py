@@ -22,9 +22,15 @@ class JsonFormatter(logging.Formatter):
             "logger": record.name,
             "message": record.getMessage(),
         }
+        # Поля, переданные через logger.info(..., extra={"event": {...}}), кладём
+        # в JSON отдельными ключами — иначе по логу нельзя ничего посчитать,
+        # придётся разбирать текст сообщения регулярками.
+        event = getattr(record, "event", None)
+        if isinstance(event, dict):
+            payload.update(event)
         if record.exc_info:
             payload["exception"] = self.formatException(record.exc_info)
-        return json.dumps(payload, ensure_ascii=False)
+        return json.dumps(payload, ensure_ascii=False, default=str)
 
 
 def setup_logging(level: str | None = None) -> None:
